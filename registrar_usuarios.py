@@ -27,44 +27,45 @@ def automate_registration():
     """
     print("Iniciando la automatización de registro...")
 
+    driver = None  # Inicializamos la variable 'driver' para evitar UnboundLocalError
     try:
-        # 1. Leer los datos del archivo CSV
+        # 1. Inicializar el navegador
+        print("Abriendo el navegador...")
+        driver = webdriver.Firefox()
+
+        # 2. Navegar a la página de login
+        print("Navegando a la URL de login: https://fveu.nervana-consulting.com/#/")
+        driver.get("https://fveu.nervana-consulting.com/#/")
+
+        # 3. Pausa para login manual
+        # Se solicita al usuario que inicie sesión manualmente.
+        print("\n--- ¡PAUSA PARA EL LOGIN MANUAL! ---")
+        print("Por favor, inicia sesión en el navegador con tus credenciales.")
+        print("Una vez que hayas iniciado sesión y veas la página principal, presiona 'Enter' en esta terminal para continuar...")
+        input("Presiona ENTER para continuar...")
+        print("Continuando con la automatización...")
+
+        wait = WebDriverWait(driver, 20)
+
+        # 4. Leer los datos del archivo CSV
         df = pd.read_csv(CSV_FILE)
         print(f"Se encontraron {len(df)} usuarios en el archivo {CSV_FILE}.")
 
-        # 2. Inicializar el navegador
-        print("Abriendo el navegador...")
-        # Usa el Geckodriver para Firefox.
-        driver = webdriver.Firefox()
-
-        # 3. Navegar a la página de registro
-        driver.get(REGISTRATION_URL)
-        print(f"Navegando a la URL: {REGISTRATION_URL}")
-
-        # 4. Esperar a que la página cargue y el formulario del paso 1 esté visible.
-        wait = WebDriverWait(driver, 20)
-        try:
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[aria-label="Número de Cédula"]')))
-            print("El formulario del Paso 1 está visible.")
-        except Exception:
-            print("¡Error! No se pudo encontrar el formulario del Paso 1. Verifica los selectores.")
-            driver.quit()
-            return
-
         # 5. Iterar sobre cada fila (usuario) del DataFrame
         for index, row in df.iterrows():
+            # Volver a la página de registro después de cada usuario
+            driver.get(REGISTRATION_URL)
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[aria-label="Número de Cédula"]')))
+
             # Datos del Paso 1
             cedula = str(row['cedula'])
             nombres = row['nombres']
             apellidos = row['apellidos']
             telefono = str(row['telefono'])
             correo = row['correo']
-            estado = row['estado']
 
             # Datos del Paso 2
             sede = row['sede']
-            carrera = row['carrera']
-            anio_semestre = row['anio_semestre']
             materia1 = row['materia1']
             materia2 = row['materia2']
 
@@ -87,29 +88,32 @@ def automate_registration():
                 telefono_input.send_keys(telefono)
                 correo_input.send_keys(correo)
 
-                # Seleccionar el estado del menú desplegable
-                estado_select = driver.find_element(By.CSS_SELECTOR, 'label[aria-label="Estado"]')
-                estado_select.click()
-                estado_option = wait.until(EC.presence_of_element_located((By.XPATH, f"//div[contains(@class, 'q-item__label') and contains(text(), '{estado}')]")))
-                estado_option.click()
+                # --- SELECCIONAR EL ESTADO POR POSICIÓN (7mo elemento) ---
+                print("Haciendo clic para abrir el menú del estado...")
+                estado_field_control = driver.find_element(By.CSS_SELECTOR, '.q-field__control-container input[aria-label="Estado"]').find_element(By.XPATH, '..')
+                estado_field_control.click()
 
-                # Hacer clic en el botón para avanzar al siguiente paso
-                # Nota: Asumo que existe un botón 'Siguiente' o 'Continuar'.
-                # Si no existe y el avance es automático al llenar los campos, se omite este paso.
-                # Basado en tu HTML, el botón de guardado está deshabilitado. Se buscará el botón que lo habilita.
-                # Si hay un botón "Siguiente", usaría:
-                # next_button = driver.find_element(By.XPATH, "//button[span[contains(text(), 'Siguiente')]]")
-                # next_button.click()
-                # De momento, el script asume que los campos del Paso 2 se habilitan en la misma página.
+                # Esperar a que los elementos del menú estén presentes y seleccionar el 7mo
+                estado_options = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.q-list--padding .q-item__label')))
+                if len(estado_options) >= 7:
+                    estado_options[6].click()  # [6] corresponde a la 7ma posición (índice 0)
+                    print("Séptimo estado seleccionado con éxito.")
+                else:
+                    print("Error: No se encontraron suficientes opciones para el estado.")
+
+                # --- HACER CLIC EN EL BOTÓN SIGUIENTE ---
+                next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[contains(text(), 'Siguiente')]]")))
+                next_button.click()
+                print("Haciendo clic en 'Siguiente'...")
+                time.sleep(2) # Espera para la transición a la siguiente página/sección
 
                 # --- PASO 2: Llenar la segunda parte del formulario ---
                 print("Llenando la información académica (Paso 2)...")
-                # Esperar a que el campo 'Sede' esté visible antes de continuar
                 wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[aria-label="Sede"]')))
 
                 sede_input = driver.find_element(By.CSS_SELECTOR, 'input[aria-label="Sede"]')
-                carrera_select = driver.find_element(By.CSS_SELECTOR, 'label[aria-label="Carrera"]')
-                anio_semestre_select = driver.find_element(By.CSS_SELECTOR, 'label[aria-label="Año o Semestre"]')
+                carrera_select_field = driver.find_element(By.CSS_SELECTOR, '.q-field__control-container input[aria-label="Carrera"]').find_element(By.XPATH, '..')
+                anio_semestre_select_field = driver.find_element(By.CSS_SELECTOR, '.q-field__control-container input[aria-label="Año o Semestre"]').find_element(By.XPATH, '..')
                 materia1_input = driver.find_element(By.CSS_SELECTOR, 'input[aria-label="Materia 1"]')
                 materia2_input = driver.find_element(By.CSS_SELECTOR, 'input[aria-label="Materia 2"]')
 
@@ -117,15 +121,23 @@ def automate_registration():
                 sede_input.clear()
                 sede_input.send_keys(sede)
 
-                # Seleccionar la Carrera
-                carrera_select.click()
-                carrera_option = wait.until(EC.presence_of_element_located((By.XPATH, f"//div[contains(@class, 'q-item__label') and contains(text(), '{carrera}')]")))
-                carrera_option.click()
+                # SELECCIONAR LA CARRERA POR POSICIÓN (7mo elemento)
+                carrera_select_field.click()
+                carrera_options = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.q-list--padding .q-item__label')))
+                if len(carrera_options) >= 7:
+                    carrera_options[6].click()
+                    print("Séptima carrera seleccionada con éxito.")
+                else:
+                    print("Error: No se encontraron suficientes opciones para la carrera.")
 
-                # Seleccionar el Año o Semestre
-                anio_semestre_select.click()
-                anio_semestre_option = wait.until(EC.presence_of_element_located((By.XPATH, f"//div[contains(@class, 'q-item__label') and contains(text(), '{anio_semestre}')]")))
-                anio_semestre_option.click()
+                # SELECCIONAR EL AÑO O SEMESTRE POR POSICIÓN (7mo elemento)
+                anio_semestre_select_field.click()
+                anio_semestre_options = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.q-list--padding .q-item__label')))
+                if len(anio_semestre_options) >= 7:
+                    anio_semestre_options[6].click()
+                    print("Séptimo año/semestre seleccionado con éxito.")
+                else:
+                    print("Error: No se encontraron suficientes opciones para el año/semestre.")
 
                 # Rellenar las materias
                 materia1_input.clear()
@@ -134,8 +146,6 @@ def automate_registration():
                 materia2_input.send_keys(materia2)
 
                 # 7. Encontrar y hacer clic en el botón 'Guardar' para finalizar.
-                # El botón de guardar se habilitará una vez que todos los campos estén llenos.
-                # Se espera a que el botón ya no esté deshabilitado.
                 save_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[span[contains(text(), 'Guardar')]]")))
                 save_button.click()
 
@@ -146,7 +156,7 @@ def automate_registration():
                 print("Procesamiento del usuario completado.")
 
             except Exception as e:
-                print(f"Ocurrió un error al procesar el usuario {correo} en el paso 2: {e}")
+                print(f"Ocurrió un error al procesar el usuario {correo}: {e}")
                 continue
 
     except FileNotFoundError:
@@ -156,7 +166,8 @@ def automate_registration():
     finally:
         # 9. Cerrar el navegador al finalizar
         print("\nProceso de registro finalizado. Cerrando el navegador.")
-        driver.quit()
+        if driver:
+            driver.quit()
 
 if __name__ == "__main__":
     automate_registration()
